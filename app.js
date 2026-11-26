@@ -4,6 +4,7 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { ThreeMFLoader } from 'three/addons/loaders/3MFLoader.js';
+import { unzipSync } from 'three/addons/libs/fflate.module.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -60,14 +61,21 @@ $('up-axis').addEventListener('change', () => {
 });
 
 async function loadPositions(file) {
-  const url = URL.createObjectURL(file);
   const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === '3mf') return load3mfPositions(file);
+  const url = URL.createObjectURL(file);
   let root = null;
   if (ext === 'stl') root = new THREE.Mesh(await new STLLoader().loadAsync(url));
   else if (ext === 'obj') root = await new OBJLoader().loadAsync(url);
   else if (ext === 'glb' || ext === 'gltf') root = (await new GLTFLoader().loadAsync(url)).scene;
-  else if (ext === '3mf') root = await new ThreeMFLoader().loadAsync(url);
   else throw new Error('対応形式は STL / OBJ / GLB / glTF / 3MF です');
+  const pos = extractPositions(root);
+  URL.revokeObjectURL(url);
+  if (!pos.length) throw new Error('メッシュが見つかりませんでした');
+  return new Float32Array(pos);
+}
+
+function extractPositions(root) {
   root.updateMatrixWorld(true);
   const pos = [];
   root.traverse(obj => {
@@ -78,9 +86,121 @@ async function loadPositions(file) {
     const v = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(m); pos.push(v.x, v.y, v.z); }
   });
-  URL.revokeObjectURL(url);
-  if (!pos.length) throw new Error('メッシュが見つかりませんでした');
-  return new Float32Array(pos);
+  return pos;
+}
+
+// ---------- 3MF ----------
+// 純正ローダーで読めない形式（Bambu Studio等のプロジェクト3MFは、メッシュが
+// 外部ファイルに分かれていて p:path 参照になる）があるため、自前パーサーも用意する。
+async function load3mfPositions(file) {
+  try {
+    const url = URL.createObjectURL(file);
+    const root = await new ThreeMFLoader().loadAsync(url);
+    URL.revokeObjectURL(url);
+    const pos = extractPositions(root);
+    if (pos.length) return new Float32Array(pos);
+  } catch (e) { /* 自前パーサーで再試行 */ }
+  return parse3mfPositions(file);
+}
+
+function parse3mfTransform(str) {
+  const m = new THREE.Matrix4();
+  if (!str) return m;
+  const t = str.trim().split(/\s+/).map(Number);
+  if (t.length < 12 || t.some(isNaN)) return m;
+  m.set(t[0], t[3], t[6], t[9], t[1], t[4], t[7], t[10], t[2], t[5], t[8], t[11], 0, 0, 0, 1);
+  return m;
+}
+
+async function parse3mfPositions(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let files;
+  try {
+    // 画像などの大きな付属ファイルは展開しない（.model だけ取り出す）
+    files = unzipSync(buf, { filter: f => f.name.toLowerCase().endsWith('.model') });
+  } catch (e) {
+    throw new Error('3MFファイルを開けませんでした（ZIPとして読み取れません）');
+  }
+  const dec = new TextDecoder();
+  const docs = {};
+  for (const rawName of Object.keys(files)) {
+    const name = rawName.replace(/^\.\//, '').replace(/^\//, '');
+    const xml = new DOMParser().parseFromString(dec.decode(files[rawName]), 'application/xml');
+    if (xml.querySelector('parsererror')) continue;
+    const objects = new Map();
+    xml.querySelectorAll('object').forEach(objEl => {
+      const id = objEl.getAttribute('id');
+      if (id == null) return;
+      const entry = {};
+      const meshEl = objEl.querySelector('mesh');
+      if (meshEl) {
+        const vEls = meshEl.getElementsByTagName('vertex');
+        const vertices = new Float32Array(vEls.length * 3);
+        for (let i = 0; i < vEls.length; i++) {
+          vertices[i*3] = parseFloat(vEls[i].getAttribute('x'));
+          vertices[i*3+1] = parseFloat(vEls[i].getAttribute('y'));
+          vertices[i*3+2] = parseFloat(vEls[i].getAttribute('z'));
+        }
+        const tEls = meshEl.getElementsByTagName('triangle');
+        const triangles = new Uint32Array(tEls.length * 3);
+        for (let i = 0; i < tEls.length; i++) {
+          triangles[i*3] = parseInt(tEls[i].getAttribute('v1'), 10);
+          triangles[i*3+1] = parseInt(tEls[i].getAttribute('v2'), 10);
+          triangles[i*3+2] = parseInt(tEls[i].getAttribute('v3'), 10);
+        }
+        entry.mesh = { vertices, triangles };
+      }
+      const compEls = objEl.getElementsByTagName('component');
+      if (compEls.length) {
+        entry.components = Array.from(compEls).map(c => ({
+          objectid: c.getAttribute('objectid'),
+          path: c.getAttribute('p:path') || c.getAttribute('path'),
+          matrix: parse3mfTransform(c.getAttribute('transform')),
+        }));
+      }
+      objects.set(String(id), entry);
+    });
+    const build = Array.from(xml.getElementsByTagName('item')).map(it => ({
+      objectid: it.getAttribute('objectid'),
+      path: it.getAttribute('p:path') || it.getAttribute('path'),
+      matrix: parse3mfTransform(it.getAttribute('transform')),
+    }));
+    docs[name] = { objects, build };
+  }
+  const names = Object.keys(docs);
+  if (!names.length) throw new Error('3MF内にモデルデータが見つかりませんでした');
+  const rootName = names.find(n => n.toLowerCase() === '3d/3dmodel.model') || names.find(n => docs[n].build.length);
+  if (!rootName) throw new Error('3MFのルートモデルが見つかりませんでした');
+  const findDoc = (name) => docs[name] || docs[names.find(k => k.toLowerCase() === String(name).toLowerCase())];
+  const resolvePath = (from, p) => {
+    if (!p) return from;
+    if (p.startsWith('/')) return p.slice(1);
+    const dir = from.split('/').slice(0, -1).join('/');
+    return dir ? dir + '/' + p : p;
+  };
+  const positions = [];
+  const v3 = new THREE.Vector3();
+  function emit(docName, objectId, matrix, depth) {
+    if (depth > 16) return;
+    const doc = findDoc(docName);
+    if (!doc) return;
+    const obj = doc.objects.get(String(objectId));
+    if (!obj) return;
+    if (obj.mesh) {
+      const { vertices, triangles } = obj.mesh;
+      for (let i = 0; i < triangles.length; i++) {
+        const vi = triangles[i] * 3;
+        v3.set(vertices[vi], vertices[vi+1], vertices[vi+2]).applyMatrix4(matrix);
+        positions.push(v3.x, v3.y, v3.z);
+      }
+    }
+    if (obj.components) {
+      for (const c of obj.components) emit(resolvePath(docName, c.path), c.objectid, matrix.clone().multiply(c.matrix), depth + 1);
+    }
+  }
+  for (const item of docs[rootName].build) emit(resolvePath(rootName, item.path), item.objectid, item.matrix, 0);
+  if (!positions.length) throw new Error('3MFからメッシュを取り出せませんでした');
+  return new Float32Array(positions);
 }
 
 // ---------- controls ----------
