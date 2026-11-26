@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ブロッキファイ | 3Dモデルをボクセル設計図に変換</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<header>
+  <div class="logo">🧊 ブロッキファイ <span class="logo-sub">BLOCKIFY 日本語版</span></div>
+  <div class="header-sub">3Dモデル → ボクセル設計図コンバーター</div>
+</header>
+
+<main>
+  <section class="panel" id="upload-panel">
+    <h2>3Dモデルを選択（STL / OBJ / GLB）</h2>
+    <div id="dropzone" tabindex="0">
+      <div class="dz-icon">⬆</div>
+      <div id="dz-text">ファイルをドロップ、またはクリックして選択</div>
+      <div class="dz-hint">ファイルは外部に送信されません。すべてこのブラウザの中で処理します。</div>
+    </div>
+    <input type="file" id="file-input" accept=".stl,.obj,.glb,.gltf" hidden>
+
+    <label class="slider-label">グリッドサイズ <span id="grid-label">（32³）</span>
+      <input type="range" id="grid-size" min="16" max="128" step="8" value="32">
+    </label>
+    <div class="row">
+      <button id="mode-toggle" class="toggle" type="button">中身あり（SOLID）</button>
+      <button id="voxelize" type="button" disabled>ボクセル化する</button>
+    </div>
+    <div id="status" role="status"></div>
+    <progress id="progress" max="100" value="0" hidden></progress>
+  </section>
+
+  <div id="result" hidden>
+    <div class="columns">
+      <div class="col">
+        <section class="panel">
+          <div class="panel-head"><h2>3Dプレビュー</h2>
+            <button id="view-toggle" type="button">全体を表示中</button>
+          </div>
+          <div id="preview"></div>
+          <div class="row small">ドラッグで回転 ／ 🔍 <input type="range" id="zoom" min="0.5" max="3" step="0.1" value="1"></div>
+        </section>
+        <section class="panel">
+          <h2>必要なブロック</h2>
+          <div id="inventory"></div>
+        </section>
+      </div>
+      <div class="col">
+        <section class="panel">
+          <div class="panel-head"><h2>設計図</h2>
+            <span id="layer-badge">L1</span>
+            <span><button id="open-export2" type="button" title="書き出しコード">&lt;/&gt;</button>
+            <button id="print-btn" type="button" title="印刷">🖨</button></span>
+          </div>
+          <canvas id="blueprint" width="520" height="520"></canvas>
+          <div class="row">
+            <strong id="layer-title">レイヤー 1</strong>
+            <button id="prev-layer" type="button">◀ 前へ</button>
+            <span id="layer-count">1 / 1</span>
+            <button id="next-layer" type="button">次へ ▶</button>
+          </div>
+          <div class="row">
+            <button id="open-export" type="button">書き出しコードを取得</button>
+            <button id="download-pdf" type="button">PDFをダウンロード</button>
+            <button id="download-json" type="button">JSONをダウンロード</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <p class="note">使い方： ①モデルを読み込む → ②グリッドサイズと「中身あり／中空」を選ぶ → ③ボクセル化する → ④3Dと設計図を確認し、ブロックを変更 → ⑤レイヤーごとに設計図を見て積む、または書き出しコード／PDFを使う。</p>
+</main>
+
+<div id="material-modal" class="modal" hidden>
+  <div class="modal-box">
+    <h2>ブロックを変更</h2>
+    <input type="search" id="material-search" placeholder="ブロックを検索...（例：ダイヤ、diamond）">
+    <div id="material-list"></div>
+    <button class="close-modal" type="button">閉じる</button>
+  </div>
+</div>
+
+<div id="export-modal" class="modal" hidden>
+  <div class="modal-box wide">
+    <h2>スクリプト書き出し</h2>
+    <div class="tabs">
+      <button id="tab-python" class="tab active" type="button">Pythonスクリプト</button>
+      <button id="tab-commands" class="tab" type="button">MCコマンド</button>
+    </div>
+    <textarea id="export-text" readonly rows="16"></textarea>
+    <div class="row">
+      <button id="copy-export" type="button">クリップボードにコピー</button>
+      <button class="close-modal" type="button">閉じる（X）</button>
+    </div>
+    <p class="small">Minecraft Education Edition（教育版）や、各種自動化MODで使えます。Python版はチャットで「build」と打つと、プレイヤーの前方に建築します。</p>
+  </div>
+</div>
+
+<script src="blocks.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
