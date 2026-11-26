@@ -21,13 +21,13 @@
 
 <main>
   <section class="panel" id="upload-panel">
-    <h2>3Dモデルを選択（STL / OBJ / GLB）</h2>
+    <h2>3Dモデルを選択（STL / OBJ / GLB / 3MF）</h2>
     <div id="dropzone" tabindex="0">
       <div class="dz-icon">⬆</div>
       <div id="dz-text">ファイルをドロップ、またはクリックして選択</div>
       <div class="dz-hint">ファイルは外部に送信されません。すべてこのブラウザの中で処理します。</div>
     </div>
-    <input type="file" id="file-input" accept=".stl,.obj,.glb,.gltf" hidden>
+    <input type="file" id="file-input" accept=".stl,.obj,.glb,.gltf,.3mf" hidden>
 
     <label class="slider-label">グリッドサイズ <span id="grid-label">（32³）</span>
       <input type="range" id="grid-size" min="16" max="128" step="8" value="32">
@@ -38,7 +38,7 @@
     </div>
     <label class="slider-label">モデルの上方向（縦軸）
       <select id="up-axis">
-        <option value="auto" selected>自動（STL／OBJはZが上、GLBはYが上）</option>
+        <option value="auto" selected>自動（STL／OBJ／3MFはZが上、GLBはYが上）</option>
         <option value="z">Zが上（3Dプリント用STLなど）</option>
         <option value="y">Yが上</option>
       </select>

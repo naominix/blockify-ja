@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { ThreeMFLoader } from 'three/addons/loaders/3MFLoader.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -37,7 +38,7 @@ async function setFile(file) {
   }
 }
 
-// モデルの上方向: STL/OBJは3Dプリント由来でZが上のことが多いため、自動ではZ→Yへ回す。
+// モデルの上方向: STL/OBJ/3MFは3Dプリント由来でZが上のことが多いため、自動ではZ→Yへ回す。
 // GLB/glTFは規格上Yが上。手動選択があればそちらを優先する。
 function currentUp() {
   const sel = $('up-axis').value;
@@ -65,7 +66,8 @@ async function loadPositions(file) {
   if (ext === 'stl') root = new THREE.Mesh(await new STLLoader().loadAsync(url));
   else if (ext === 'obj') root = await new OBJLoader().loadAsync(url);
   else if (ext === 'glb' || ext === 'gltf') root = (await new GLTFLoader().loadAsync(url)).scene;
-  else throw new Error('対応形式は STL / OBJ / GLB / glTF です');
+  else if (ext === '3mf') root = await new ThreeMFLoader().loadAsync(url);
+  else throw new Error('対応形式は STL / OBJ / GLB / glTF / 3MF です');
   root.updateMatrixWorld(true);
   const pos = [];
   root.traverse(obj => {

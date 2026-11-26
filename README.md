@@ -1,6 +1,6 @@
 # ブロッキファイ（Blockify 日本語版）
 
-3Dモデル（STL / OBJ / GLB / glTF）をボクセル化して、Minecraftで建築するための
+3Dモデル（STL / OBJ / GLB / glTF / 3MF）をボクセル化して、Minecraftで建築するための
 層ごとの設計図（ブループリント）に変換するWebアプリです。
 [Blockify](https://blockify-358752380494.us-west1.run.app/) と同じ機能を、日本語で再実装しました。
 
@@ -10,10 +10,10 @@
 
 | 元サイト | 本アプリ |
 |---|---|
-| SELECT 3D MODEL (STL/OBJ/GLB)、DROP FILE OR CLICK | 3Dモデルを選択、ファイルをドロップ／クリック（glTFも追加対応） |
+| SELECT 3D MODEL (STL/OBJ/GLB)、DROP FILE OR CLICK | 3Dモデルを選択、ファイルをドロップ／クリック（glTF・3MFも追加対応） |
 | GRID SIZE スライダー 16〜128（刻み8、初期値32） | グリッドサイズ（同仕様） |
 | SOLID / HOLLOW トグル | 中身あり／中空トグル |
-| （なし） | モデルの上方向（縦軸）切替：自動（STL／OBJはZが上、GLBはYが上）／Zが上／Yが上 |
+| （なし） | モデルの上方向（縦軸）切替：自動（STL／OBJ／3MFはZが上、GLBはYが上）／Zが上／Yが上 |
 | VOXELIZE | ボクセル化する |
 | 3D PREVIEW（ドラッグ回転、ズーム 0.5〜3、SHOWING FULL / LAYER VIEW） | 3Dプレビュー（同仕様） |
 | BLUEPRINT（レイヤー送り ◀▶、現在層／全層数） | 設計図（同仕様、ホバーでブロック名と座標を表示） |
