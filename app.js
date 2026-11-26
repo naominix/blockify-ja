@@ -217,6 +217,7 @@ function voxelize() {
   $('voxelize').disabled = true; $('progress').hidden = false; $('progress').value = 0;
   $('status').textContent = 'ボクセル化しています（Web Worker + WebAssembly）...';
   const worker = new Worker('voxel-worker.js');
+  const solidUsed = state.solid;
   worker.onmessage = (ev) => {
     const d = ev.data;
     if (d.type === 'progress') $('progress').value = d.value;
@@ -224,8 +225,11 @@ function voxelize() {
     if (d.type === 'done') {
       worker.terminate();
       state.voxels = d.voxels; state.dims = d.dims; state.layer = 0;
+      // 新しくボクセル化したら、プレビューは必ず全体表示に戻す（レイヤー表示のまま気づかない事故防止）
+      state.layerView = false;
+      $('view-toggle').textContent = '全体を表示中';
       $('progress').hidden = true; $('voxelize').disabled = false;
-      $('status').textContent = `完了： ${d.voxels.length/3} ブロック ／ ${d.dims[0]} × ${d.dims[1]} × ${d.dims[2]}${d.usedWasm ? '（WASM使用）' : '（JSフォールバック）'}`;
+      $('status').textContent = `完了： ${d.voxels.length/3} ブロック ／ ${d.dims[0]} × ${d.dims[1]} × ${d.dims[2]}${solidUsed ? (d.usedWasm ? '（WASM使用）' : '（JSフォールバック）') : ''}`;
       $('result').hidden = false;
       renderAll();
     }
