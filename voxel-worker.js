@@ -2,50 +2,47 @@
 // WASMが使えない環境ではJS実装に自動フォールバックする
 
 function triBoxOverlap(cx, cy, cz, verts) {
-  // Akenine-Möller triangle-box overlap test, box half size = 0.5, center (cx,cy,cz)
+  // Akenine-Möller triangle-box overlap test (tribox3.c の標準形に忠実に実装)
+  // box half size = 0.5, center (cx,cy,cz)
   const v = verts.map(p => [p[0]-cx, p[1]-cy, p[2]-cz]);
+  const [v0, v1, v2] = v;
   const e = [
-    [v[1][0]-v[0][0], v[1][1]-v[0][1], v[1][2]-v[0][2]],
-    [v[2][0]-v[1][0], v[2][1]-v[1][1], v[2][2]-v[1][2]],
-    [v[0][0]-v[2][0], v[0][1]-v[2][1], v[0][2]-v[2][2]],
+    [v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]],
+    [v2[0]-v1[0], v2[1]-v1[1], v2[2]-v1[2]],
+    [v0[0]-v2[0], v0[1]-v2[1], v0[2]-v2[2]],
   ];
-  const fex = Math.abs(e[0][0]), fey = Math.abs(e[0][1]), fez = Math.abs(e[0][2]);
-  // cross(e0, axis) tests (9 tests) - compact implementation
-  function axisTest(a, b, fa, fb, p0, p2, q0, q2) {
-    const min = Math.min(a*p0 + b*q0, a*p2 + b*q2), max = Math.max(a*p0 + b*q0, a*p2 + b*q2);
-    const rad = fa + fb;
+  const fe = e.map(ed => [Math.abs(ed[0]), Math.abs(ed[1]), Math.abs(ed[2])]);
+  const H = 0.5;
+  function axis(pA, pB, rad) {
+    const min = Math.min(pA, pB), max = Math.max(pA, pB);
     return !(min > rad || max < -rad);
   }
-  // e0 x X/Y/Z etc. Use standard set:
-  // AXISTEST_X01, Y02, Z12, X2, Y1, Z0 patterns expanded manually per edge
-  const tests = [
-    // edge 0
-    () => axisTest(e[0][2], -e[0][1], fez, fey, v[0][1], v[2][1], v[0][2], v[2][2]),
-    () => axisTest(-e[0][2], e[0][0], fez, fex, v[0][0], v[2][0], v[0][2], v[2][2]),
-    () => axisTest(e[0][1], -e[0][0], fey, fex, v[1][0], v[2][0], v[1][1], v[2][1]),
-    // edge 1
-    () => axisTest(e[1][2], -e[1][1], Math.abs(e[1][2]), Math.abs(e[1][1]), v[0][1], v[2][1], v[0][2], v[2][2]),
-    () => axisTest(-e[1][2], e[1][0], Math.abs(e[1][2]), Math.abs(e[1][0]), v[0][0], v[2][0], v[0][2], v[2][2]),
-    () => axisTest(e[1][1], -e[1][0], Math.abs(e[1][1]), Math.abs(e[1][0]), v[0][0], v[1][0], v[0][1], v[1][1]),
-    // edge 2
-    () => axisTest(e[2][2], -e[2][1], Math.abs(e[2][2]), Math.abs(e[2][1]), v[0][1], v[1][1], v[0][2], v[1][2]),
-    () => axisTest(-e[2][2], e[2][0], Math.abs(e[2][2]), Math.abs(e[2][0]), v[0][0], v[1][0], v[0][2], v[1][2]),
-    () => axisTest(e[2][1], -e[2][0], Math.abs(e[2][1]), Math.abs(e[2][0]), v[1][0], v[2][0], v[1][1], v[2][1]),
-  ];
-  for (const t of tests) if (!t()) return false;
-  // box axes: min/max per axis within [-0.5,0.5]
+  const [e0, e1, e2] = e, [f0, f1, f2] = fe;
+  // edge 0: X01, Y02, Z12
+  if (!axis(e0[2]*v0[1] - e0[1]*v0[2], e0[2]*v2[1] - e0[1]*v2[2], f0[2]*H + f0[1]*H)) return false;
+  if (!axis(-e0[2]*v0[0] + e0[0]*v0[2], -e0[2]*v2[0] + e0[0]*v2[2], f0[2]*H + f0[0]*H)) return false;
+  if (!axis(e0[1]*v1[0] - e0[0]*v1[1], e0[1]*v2[0] - e0[0]*v2[1], f0[1]*H + f0[0]*H)) return false;
+  // edge 1: X01, Y02, Z0
+  if (!axis(e1[2]*v0[1] - e1[1]*v0[2], e1[2]*v2[1] - e1[1]*v2[2], f1[2]*H + f1[1]*H)) return false;
+  if (!axis(-e1[2]*v0[0] + e1[0]*v0[2], -e1[2]*v2[0] + e1[0]*v2[2], f1[2]*H + f1[0]*H)) return false;
+  if (!axis(e1[1]*v0[0] - e1[0]*v0[1], e1[1]*v1[0] - e1[0]*v1[1], f1[1]*H + f1[0]*H)) return false;
+  // edge 2: X2, Y1, Z12
+  if (!axis(e2[2]*v0[1] - e2[1]*v0[2], e2[2]*v1[1] - e2[1]*v1[2], f2[2]*H + f2[1]*H)) return false;
+  if (!axis(-e2[2]*v0[0] + e2[0]*v0[2], -e2[2]*v1[0] + e2[0]*v1[2], f2[2]*H + f2[0]*H)) return false;
+  if (!axis(e2[1]*v1[0] - e2[0]*v1[1], e2[1]*v2[0] - e2[0]*v2[1], f2[1]*H + f2[0]*H)) return false;
+  // box axes
   for (let a = 0; a < 3; a++) {
-    const mn = Math.min(v[0][a], v[1][a], v[2][a]), mx = Math.max(v[0][a], v[1][a], v[2][a]);
-    if (mn > 0.5 || mx < -0.5) return false;
+    const mn = Math.min(v0[a], v1[a], v2[a]), mx = Math.max(v0[a], v1[a], v2[a]);
+    if (mn > H || mx < -H) return false;
   }
-  // triangle plane vs box
+  // triangle plane vs box: |n·v0| <= H*(|nx|+|ny|+|nz|)
   const n = [
-    e[0][1]*e[1][2] - e[0][2]*e[1][1],
-    e[0][2]*e[1][0] - e[0][0]*e[1][2],
-    e[0][0]*e[1][1] - e[0][1]*e[1][0],
+    e0[1]*e1[2] - e0[2]*e1[1],
+    e0[2]*e1[0] - e0[0]*e1[2],
+    e0[0]*e1[1] - e0[1]*e1[0],
   ];
-  const s = -(n[0]*v[0][0] + n[1]*v[0][1] + n[2]*v[0][2]);
-  const r = 0.5 * (Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]));
+  const s = n[0]*v0[0] + n[1]*v0[1] + n[2]*v0[2];
+  const r = H * (Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]));
   return Math.abs(s) <= r;
 }
 
@@ -92,7 +89,8 @@ self.onmessage = async (ev) => {
     }
     const sx = maxX-minX || 1, sy = maxY-minY || 1, sz = maxZ-minZ || 1;
     const scale = gridSize / Math.max(sx, sy, sz);
-    const gx = Math.max(1, Math.round(sx*scale)), gy = Math.max(1, Math.round(sy*scale)), gz = Math.max(1, Math.round(sz*scale));
+    // 切り上げでないと、最大面側の薄い層がグリッド外に落ちて壁に穴が開く（roundは不可）
+    const gx = Math.max(1, Math.ceil(sx*scale - 1e-9)), gy = Math.max(1, Math.ceil(sy*scale - 1e-9)), gz = Math.max(1, Math.ceil(sz*scale - 1e-9));
     const px = gx+2, py = gy+2, pz = gz+2;
     const grid = new Uint8Array(px*py*pz);
     const pIdx = (x,y,z) => ((y+1)*pz + (z+1))*px + (x+1);

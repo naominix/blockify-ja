@@ -13,6 +13,7 @@
 | SELECT 3D MODEL (STL/OBJ/GLB)、DROP FILE OR CLICK | 3Dモデルを選択、ファイルをドロップ／クリック（glTFも追加対応） |
 | GRID SIZE スライダー 16〜128（刻み8、初期値32） | グリッドサイズ（同仕様） |
 | SOLID / HOLLOW トグル | 中身あり／中空トグル |
+| （なし） | モデルの上方向（縦軸）切替：自動（STL／OBJはZが上、GLBはYが上）／Zが上／Yが上 |
 | VOXELIZE | ボクセル化する |
 | 3D PREVIEW（ドラッグ回転、ズーム 0.5〜3、SHOWING FULL / LAYER VIEW） | 3Dプレビュー（同仕様） |
 | BLUEPRINT（レイヤー送り ◀▶、現在層／全層数） | 設計図（同仕様、ホバーでブロック名と座標を表示） |

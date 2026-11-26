@@ -36,6 +36,14 @@
       <button id="mode-toggle" class="toggle" type="button">中身あり（SOLID）</button>
       <button id="voxelize" type="button" disabled>ボクセル化する</button>
     </div>
+    <label class="slider-label">モデルの上方向（縦軸）
+      <select id="up-axis">
+        <option value="auto" selected>自動（STL／OBJはZが上、GLBはYが上）</option>
+        <option value="z">Zが上（3Dプリント用STLなど）</option>
+        <option value="y">Yが上</option>
+      </select>
+    </label>
+    <p class="dz-hint">平べったいモデルなのにレイヤー数が大きくなる場合は、上方向が合っていません。自動の判定を切り替えて、もう一度ボクセル化してください。</p>
     <div id="status" role="status"></div>
     <progress id="progress" max="100" value="0" hidden></progress>
   </section>

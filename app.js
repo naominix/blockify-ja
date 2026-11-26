@@ -24,16 +24,39 @@ fi.addEventListener('change', () => { if (fi.files[0]) setFile(fi.files[0]); });
 
 async function setFile(file) {
   state.file = file; state.fileName = file.name;
+  state.ext = file.name.split('.').pop().toLowerCase();
   $('dz-text').textContent = file.name;
   $('status').textContent = 'モデルを読み込んでいます...';
   try {
-    state.positions = await loadPositions(file);
+    state.rawPositions = await loadPositions(file);
+    applyUpAxis();
     $('voxelize').disabled = false;
-    $('status').textContent = `読み込み完了： ${file.name}（三角形 ${state.positions.length/9} 個）。「ボクセル化する」を押してください。`;
+    $('status').textContent = `読み込み完了： ${file.name}（三角形 ${state.rawPositions.length/9} 個）。「ボクセル化する」を押してください。`;
   } catch (err) {
     $('status').textContent = '読み込みに失敗しました： ' + (err.message || err);
   }
 }
+
+// モデルの上方向: STL/OBJは3Dプリント由来でZが上のことが多いため、自動ではZ→Yへ回す。
+// GLB/glTFは規格上Yが上。手動選択があればそちらを優先する。
+function currentUp() {
+  const sel = $('up-axis').value;
+  if (sel === 'z' || sel === 'y') return sel;
+  return (state.ext === 'glb' || state.ext === 'gltf') ? 'y' : 'z';
+}
+function applyUpAxis() {
+  const raw = state.rawPositions;
+  if (!raw) return;
+  if (currentUp() === 'y') { state.positions = raw; return; }
+  const out = new Float32Array(raw.length);
+  for (let i = 0; i < raw.length; i += 3) { out[i] = raw[i]; out[i+1] = raw[i+2]; out[i+2] = -raw[i+1]; }
+  state.positions = out;
+}
+$('up-axis').addEventListener('change', () => {
+  if (!state.rawPositions) return;
+  applyUpAxis();
+  $('status').textContent = '上方向を変更しました。「ボクセル化する」をもう一度押してください。';
+});
 
 async function loadPositions(file) {
   const url = URL.createObjectURL(file);
@@ -122,13 +145,25 @@ function renderPreview() {
     inst.setMatrixAt(n, m4);
   });
   inst.count = list.length;
+  inst.instanceMatrix.needsUpdate = true;
+  inst.frustumCulled = false;
   state.mesh = inst; state.scene.add(inst);
   const r = Math.max(gx, gy, gz);
   state.camera.position.set(r*1.1, r*0.9, r*1.1);
   state.controls.target.set(0, gy/2, 0);
   applyZoom();
 }
-function applyZoom() { if (state.camera) { const z = Number($('zoom').value); state.camera.position.sub(state.controls.target).setLength(Math.max(state.dims)*1.9/Math.max(0.5,z)).add(state.controls.target); } }
+function applyZoom() {
+  if (!state.camera || !state.controls) return;
+  const z = Number($('zoom').value);
+  const maxDim = Math.max(...state.dims);
+  if (!maxDim || !isFinite(maxDim)) return;
+  // カメラ位置が不正（NaN等）な場合は初期位置に戻してからズームを適用する
+  if (!isFinite(state.camera.position.x + state.camera.position.y + state.camera.position.z)) {
+    state.camera.position.set(maxDim*1.1, maxDim*0.9, maxDim*1.1);
+  }
+  state.camera.position.sub(state.controls.target).setLength(maxDim*1.9/Math.max(0.5,z)).add(state.controls.target);
+}
 $('zoom').addEventListener('input', applyZoom);
 $('view-toggle').addEventListener('click', () => {
   state.layerView = !state.layerView;
